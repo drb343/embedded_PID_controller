@@ -32,5 +32,3 @@ make CROSS_COMPILE=arm-linux-gnueabihf- LDFLAGS="-static -lm"
 - ARM GNU toolchain (inside Docker)  
 - Make
 
-## Author
-Denis Brown
