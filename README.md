@@ -27,6 +27,8 @@ make CROSS_COMPILE=arm-linux-gnueabihf- LDFLAGS="-static -lm"
 ./pid_controller
 ```
 
+You will be prompted to enter a setpoint, which will be used in the error calculation for the PID
+
 ## Requirements
 - Docker  
 - ARM GNU toolchain (inside Docker)  
