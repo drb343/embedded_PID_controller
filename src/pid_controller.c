@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "pid_controller.h"
 
@@ -15,6 +16,7 @@
 #define CLOCK_MONOTONIC 1
 
 volatile float dt = 0.1f;
+volatile bool pid_running = true;
 
 // Update setpoint only if changed
 float update_sensor_setpoint(float *sp_ptr, pid_config_t *p1) {
@@ -55,9 +57,9 @@ float pid_equation(pid_config_t *pid, float *dt1, pid_buffer_t *pid1) {
 // Main PID control loop
 int main_pid(pid_buffer_t *pid_buffer) {
     pid_config_t pid_controller = { .Kp=1, .Ki=1, .Kd=1, .prev_error=0 };
-    int sensor_fd;
-    char buffer[BUFFER_CAP];
+    char input[BUFFER_CAP]; //used for reading the setpoint inputs, then passing on information to pid_equation()
     float user_setpoint = 0.0f;
+    char *endptr;
 
     printf("\n=== PID Controller Initialized ===\n");
     printf("Gains: Kp=%.1f, Ki=%.1f, Kd=%.1f\n", 
@@ -96,11 +98,25 @@ int main_pid(pid_buffer_t *pid_buffer) {
         last_time = now_time;
 
         printf("\n[Loop] Δt = %.3f s\n", dt);
-        printf("Enter new setpoint: ");
-        if (scanf("%f", &user_setpoint) == 1) {
-            pid_controller.setpoint = update_sensor_setpoint(&user_setpoint, &pid_controller);
-            printf("Setpoint updated to %.2f\n", user_setpoint);
+        printf("Enter new setpoint (or 'exit' to quit): ");
+
+        if (scanf("%s", input) == 1) {
+            if (strcmp(input, "exit") == 0) {
+                printf("Exiting PID controller...\n");
+                pid_running = false;
+                break;
+            }
+
+            // Try to parse as float
+            user_setpoint = strtof(input, &endptr);
+            if (*endptr == '\0') { // valid float
+                pid_controller.setpoint = update_sensor_setpoint(&user_setpoint, &pid_controller);
+                printf("Setpoint updated to %.2f\n", user_setpoint);
+            } else {
+                printf("Invalid input. Please enter a number or 'exit'.\n");
+            }
         }
+
 
         FILE *sensor_file = fopen("sensor.txt", "r");
         if (!sensor_file) {
@@ -108,13 +124,14 @@ int main_pid(pid_buffer_t *pid_buffer) {
             continue;
         }
 
-        while (fgets(buffer, sizeof(buffer), sensor_file) != NULL) {
-            pid_controller.pv = atof(buffer);
+        while (fgets(input, sizeof(input), sensor_file) != NULL) {
+            pid_controller.pv = atof(input);
             pid_controller.output = pid_equation(&pid_controller, &dt, pid_buffer);
         }
         fclose(sensor_file);
     }
 
     close(tfd);
+    printf("PID loop terminated gracefully.\n");
     return 0;
 }

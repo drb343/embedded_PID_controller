@@ -2,8 +2,11 @@
 #include "pid_controller.h"
 #include <unistd.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 #define MAX_SAMPLES 200
+
+extern volatile bool pid_running;
 
 /*
 Plotting:
@@ -13,6 +16,7 @@ Plotting:
 -Use the gnuplot command function to plot
 -Plot will be saved to a pid_plot.png file
 */
+
 void plot_task(pid_buffer_t *pid_buf)
 {
     gnuplot_ctrl *gp = gnuplot_init(); 
@@ -27,9 +31,14 @@ void plot_task(pid_buffer_t *pid_buf)
     double local_sp[MAX_SAMPLES];
     double local_out[MAX_SAMPLES];
 
-    while (1)
+    while (pid_running)
     {
         int count = pid_buf->top;
+        if (count <= 0) {
+            usleep(500000);  // wait for PID to fill buffer
+            continue;
+        }
+
         for (int i = 0; i < count; i++) {
             local_time[i] = pid_buf->elapsed_time[i];
             local_pv[i]   = pid_buf->process_variable[i];
@@ -37,12 +46,7 @@ void plot_task(pid_buffer_t *pid_buf)
             local_out[i]  = pid_buf->output[i];
         }
 
-        if (count <= 0) {
-            usleep(500000);
-            continue;   // skip until PID thread fills the buffer
-        }
-
-
+        //GNU plot commands to initialize the plot and then plot the bufferred values
         gnuplot_cmd(gp, "reset");
         gnuplot_cmd(gp, "set title 'PID Controller Response'");
         gnuplot_cmd(gp, "set xlabel 'Time (s)'");
@@ -69,7 +73,36 @@ void plot_task(pid_buffer_t *pid_buf)
         fprintf(gp->gnucmd, "e\n");
 
         fflush(gp->gnucmd);
+        usleep(500000); // update every 0.5s
     }
 
-    gnuplot_close(gp); 
+    //Plot once it pid_running finishes, this is the final end product plot which will be returned to the user
+    int final_count = pid_buf->top;
+    if (final_count > 0) {
+        gnuplot_cmd(gp, "set terminal pngcairo size 800,400");
+        gnuplot_cmd(gp, "set output 'pid_plot.png'");
+        gnuplot_cmd(gp, "set title 'Final PID Response'");
+        gnuplot_cmd(gp, "set grid");
+        gnuplot_cmd(gp, 
+            "plot '-' with lines title 'Setpoint', "
+            "'-' with lines title 'Process Variable', "
+            "'-' with lines title 'Output'");
+
+        for (int i = 0; i < final_count; i++)
+            fprintf(gp->gnucmd, "%f %f\n", pid_buf->elapsed_time[i], pid_buf->setpoint[i]);
+        fprintf(gp->gnucmd, "e\n");
+
+        for (int i = 0; i < final_count; i++)
+            fprintf(gp->gnucmd, "%f %f\n", pid_buf->elapsed_time[i], pid_buf->process_variable[i]);
+        fprintf(gp->gnucmd, "e\n");
+
+        for (int i = 0; i < final_count; i++)
+            fprintf(gp->gnucmd, "%f %f\n", pid_buf->elapsed_time[i], pid_buf->output[i]);
+        fprintf(gp->gnucmd, "e\n");
+
+        fflush(gp->gnucmd);
+        printf("Final PID plot saved to pid_plot.png\n");
+    }
+
+    gnuplot_close(gp);
 }
