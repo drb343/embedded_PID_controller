@@ -4,7 +4,7 @@ This project implements a simple PID controller compiled for ARM Linux using a D
 
 ## PID Output
 
-![PID Plot](pid_plot.png)
+![PID Plot](src/pid_plot.png)
 
 ## How to Run
 
