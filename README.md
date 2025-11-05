@@ -27,7 +27,11 @@ make CROSS_COMPILE=arm-linux-gnueabihf- LDFLAGS="-static -lm"
 ./pid_controller
 ```
 
-You will be prompted to enter a setpoint, which will be used in the error calculation for the PID
+You will be prompted to enter a setpoint, which will be used in the error calculation for the PID.
+You can also enter "exit" to exit the code:
+```bash
+Enter new setpoint (or 'exit' to quit): 
+```
 
 ## Requirements
 - Docker  
